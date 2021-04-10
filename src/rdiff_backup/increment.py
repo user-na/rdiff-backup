@@ -33,7 +33,7 @@ def Increment(new, mirror, incpref):
     file to incpref.
 
     """
-    log.Log("Incrementing mirror file %s" % mirror.get_safepath(), 5)
+    log.Log("Incrementing mirror file {rp!s}".format(rp=mirror), 5)
     if ((new and new.isdir()) or mirror.isdir()) and not incpref.lstat():
         incpref.mkdir()
 

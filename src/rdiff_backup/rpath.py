@@ -175,9 +175,21 @@ class RORPath:
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def __repr__(self):
+        """
+        Pretty print file statistics
+        """
+        return "<{cls}/{cid}:\n\tIndex={idx}\n\tData={data}>".format(
+            cls=self.__class__.__name__, cid=id(self),
+            idx=self.get_safeindex(), data=self.data)
+
     def __str__(self):
-        """Pretty print file statistics"""
-        return "Index: %s\nData: %s" % (self.get_safeindex(), self.data)
+        """
+        Return safe path of index even with names throwing UnicodeEncodeError
+
+        For instance, if the index is ("a", "b"), return "'a/b'".
+        """
+        return self.get_indexpath().decode(errors='replace')
 
     def __getstate__(self):
         """Return picklable state
@@ -379,7 +391,6 @@ class RORPath:
         """Return index as a tuple of strings with safe decoding
 
         For instance, if the index is (b"a", b"b"), return ("a", "b")
-
         """
         return tuple(map(lambda f: f.decode(errors='replace'), self.index))
 
@@ -392,14 +403,6 @@ class RORPath:
         if not self.index:
             return b'.'
         return self.path_join(*self.index)
-
-    def get_safeindexpath(self):
-        """Return safe path of index even with names throwing UnicodeEncodeError
-
-        For instance, if the index is ("a", "b"), return "'a/b'".
-
-        """
-        return self.get_indexpath().decode(errors='replace')
 
     def get_attached_filetype(self):
         """If there is a file attached, say what it is
@@ -645,9 +648,34 @@ class RPath(RORPath):
         else:
             self.base = None
 
-    def __str__(self):
-        return "%s: Path: %s\nIndex: %s\nData: %s" \
-            % (self.__class__.__name__, self.get_safepath(), self.get_safeindex(), self.data)
+    def __repr__(self):
+        return "<{cls}/{cid}:\n\tPath={rp!s}\n\tIndex={idx}\n\tData={data}>".format(
+            cls=self.__class__.__name__, cid=id(self), rp=self,
+            idx=self.get_safeindex(), data=self.data)
+
+    def __fspath__(self):
+        """
+        Just a getter for the path variable
+
+        Fulfills the os.PathLike interface, can be overwritten by QuotedRPath
+        """
+        return self.path
+
+    def __str__(self, somepath=None):
+        """
+        Return safely decoded version of path into the current encoding
+
+        it's meant only for logging and outputting to user
+        """
+        if somepath is not None:
+            # somepath should never be a string but just to be sure
+            # we check before we decode it
+            if isinstance(somepath, str):
+                return somepath
+            else:
+                return somepath.decode(errors='replace')
+        else:
+            return self.path.decode(errors='replace')
 
     def __getstate__(self):
         """Return picklable state
@@ -694,7 +722,7 @@ class RPath(RORPath):
 
     def settime(self, accesstime, modtime):
         """Change file modification times"""
-        log.Log("Setting time of %s to %d" % (self.get_safepath(), modtime), 7)
+        log.Log("Setting time of {rp!s} to %d" % (self.get_safepath(), modtime), 7)
         try:
             self.conn.os.utime(self.path, (accesstime, modtime))
         except OverflowError:
@@ -708,18 +736,17 @@ class RPath(RORPath):
     def setmtime(self, modtime):
         """Set only modtime (access time to present)"""
         log.Log(
-            lambda: "Setting time of %s to %d" % (self.get_safepath(), modtime),
+            lambda: "Setting time of {rp!s} to %d" % (self.get_safepath(), modtime),
             7)
         if modtime < 0:
-            log.Log(
-                "Warning: modification time of %s is"
-                "before 1970" % self.path, 2)
+            log.Log("Warning: modification time of {rp!s} is"
+                    "before 1970".format(self), 2)
         try:
             self.conn.os.utime(self.path, (int(time.time()), modtime))
         except OverflowError:
-            log.Log(
-                "Cannot change mtime of %s to %s - problem is probably"
-                "64->32bit conversion" % (self.path, modtime), 2)
+            log.Log("Cannot change mtime of {rp!s} to {mtim} - "
+                    "problem is probably 64->32bit conversion".format(
+                self, modtime), 2)
         except OSError:
             # It's not possible to set a modification time for
             # directories on Windows.
@@ -736,7 +763,7 @@ class RPath(RORPath):
             except AttributeError:
                 log.Log(
                     "Warning: lchown missing, cannot change ownership "
-                    "of symlink %s" % self.get_safepath(), 2)
+                    "of symlink {rp!s}" % self.get_safepath(), 2)
         else:
             self.conn.os.chown(self.path, uid, gid)
         # uid/gid equal to -1 is ignored by chown/lchown
@@ -746,17 +773,17 @@ class RPath(RORPath):
             self.data['gid'] = gid
 
     def mkdir(self):
-        log.Log("Making directory %s" % self.get_safepath(), 6)
+        log.Log("Making directory {rp!s}" % self.get_safepath(), 6)
         self.conn.os.mkdir(self.path)
         self.setdata()
 
     def makedirs(self):
-        log.Log("Making directory path %s" % self.get_safepath(), 6)
+        log.Log("Making directory path {rp!s}" % self.get_safepath(), 6)
         self.conn.os.makedirs(self.path)
         self.setdata()
 
     def rmdir(self):
-        log.Log("Removing directory %s" % self.get_safepath(), 6)
+        log.Log("Removing directory {rp!s}" % self.get_safepath(), 6)
         self.conn.os.chmod(self.path, 0o700)
         self.conn.os.rmdir(self.path)
         self.data = {'type': None}
@@ -777,7 +804,7 @@ class RPath(RORPath):
     def hardlink(self, linkpath):
         """Make self into a hardlink joined to linkpath"""
         log.Log(
-            "Hard linking %s to %s" % (self.get_safepath(),
+            "Hard linking {rp!s} to {rp!s}" % (self.get_safepath(),
                                        self.get_safepath(linkpath)), 6)
         self.conn.os.link(linkpath, self.path)
         self.setdata()
@@ -800,7 +827,7 @@ class RPath(RORPath):
 
     def touch(self):
         """Make sure file at self.path exists"""
-        log.Log("Touching %s" % self.get_safepath(), 7)
+        log.Log("Touching {rp!s}" % self.get_safepath(), 7)
         self.conn.open(self.path, "wb").close()
         self.setdata()
         if not self.isreg():
@@ -850,7 +877,7 @@ class RPath(RORPath):
 
     def delete(self):
         """Delete file at self.path.  Recursively deletes directories."""
-        log.Log("Deleting %s" % self.get_safepath(), 7)
+        log.Log("Deleting {rp!s}" % self.get_safepath(), 7)
         if self.isdir():
             try:
                 self.rmdir()
@@ -875,7 +902,7 @@ class RPath(RORPath):
     def contains_files(self):
         """Returns true if self (or subdir) contains any regular files."""
         log.Log(
-            "Determining if directory contains files: %s" %
+            "Determining if directory contains files: {rp!s}" %
             self.get_safepath(), 7)
         if not self.isdir():
             return False
@@ -930,26 +957,6 @@ class RPath(RORPath):
         comps = normed.path.split(b"/")
         return b"/".join(comps[:-1]), comps[-1]
 
-    def get_path(self):
-        """Just a getter for the path variable that can be overwritten by QuotedRPath"""
-        return self.path
-
-    def get_safepath(self, somepath=None):
-        """Return safely decoded version of path into the current encoding
-
-        it's meant only for logging and outputting to user
-
-        """
-        if somepath is not None:
-            # somepath should never be a string but just to be sure
-            # we check before we decode it
-            if isinstance(somepath, str):
-                return somepath
-            else:
-                return somepath.decode(errors='replace')
-        else:
-            return self.path.decode(errors='replace')
-
     def get_parent_rp(self):
         """Return new RPath of directory self is in"""
         if self.index:
@@ -979,7 +986,7 @@ class RPath(RORPath):
         path_list = self._get_path_as_list()
         if self.isincfile():
             if (b"rdiff-backup-data" not in path_list):
-                log.Log("Path '{rp}' looks like an increment but doesn't "
+                log.Log("Path '{rp!s}' looks like an increment but doesn't "
                         "have 'rdiff-backup-data' in its path.".format(
                             rp=self.get_safepath()),
                         log.Log.ERROR)
@@ -999,7 +1006,7 @@ class RPath(RORPath):
                 else:
                     inc_idx = -1
                 if (inc_idx != data_idx + 1):
-                    log.Log("Path '{rp}' looks like an increment but doesn't "
+                    log.Log("Path '{rp!s}' looks like an increment but doesn't "
                             "have 'rdiff-backup-data/increments' "
                             "in its path.".format(
                                 rp=self.get_safepath()), log.Log.ERROR)
@@ -1019,7 +1026,7 @@ class RPath(RORPath):
                 if (parent_rp.lstat() and parent_rp.isdir()
                         and b"rdiff-backup-data" in parent_rp.listdir()):
                     return (parent_rp, path_list[-element:], "subdir")
-            log.Log("Path '{rp}' couldn't be identified as being within "
+            log.Log("Path '{rp!s}' couldn't be identified as being within "
                     "an existing backup repository".format(
                         rp=self.get_safepath()), log.Log.ERROR)
             return (self, [], None)
@@ -1117,8 +1124,8 @@ class RPath(RORPath):
         written to self.  Returns closing value of fp.
 
         """
-        log.Log("Writing file object to %s" % self.get_safepath(), 7)
-        assert not self.lstat(), "File '{rp!s}' already exists".format(rp=self)
+        log.Log("Writing file object to {rp!s}" % self.get_safepath(), 7)
+        assert not self.lstat(), "File '{rp!r}' already exists".format(rp=self)
         outfp = self.open("wb", compress=compress)
         copyfileobj(fp, outfp)
         if outfp.close():
@@ -1128,14 +1135,14 @@ class RPath(RORPath):
 
     def write_string(self, s, compress=None):
         """Write string s into rpath"""
-        assert not self.lstat(), "File '{rp!s}' already exists".format(rp=self)
+        assert not self.lstat(), "File '{rp!r}' already exists".format(rp=self)
         with self.open("w", compress=compress) as outfp:
             outfp.write(s)
         self.setdata()
 
     def write_bytes(self, s, compress=None):
         """Write data s into rpath"""
-        assert not self.lstat(), "File '{rp!s}' already exists".format(rp=self)
+        assert not self.lstat(), "File '{rp!r}' already exists".format(rp=self)
         with self.open("wb", compress=compress) as outfp:
             outfp.write(s)
         self.setdata()
@@ -1204,7 +1211,7 @@ class RPath(RORPath):
                 # AttributeError will be raised by Python 2.2, which
                 # doesn't have os.mknod
                 log.Log(
-                    "unable to mknod %s -- using touch instead" %
+                    "unable to mknod {rp!s} -- using touch instead" %
                     self.get_safepath(), 4)
                 self.touch()
         self.setdata()
@@ -1531,7 +1538,7 @@ def copy(rpin, rpout, compress=0):
     to pass hashes on.
 
     """
-    log.Log("Regular copying %s to %s" % (rpin.index, rpout.get_safepath()), 6)
+    log.Log("Regular copying {rp!s} to {rp!s}" % (rpin.index, rpout.get_safepath()), 6)
     if not rpin.lstat():
         if rpout.lstat():
             rpout.delete()
@@ -1563,7 +1570,7 @@ def copy(rpin, rpout, compress=0):
     elif rpin.issock():
         rpout.mksock()
     else:
-        raise RPathException("File '%s' has unknown type." % rpin.get_safepath())
+        raise RPathException("File '{rp!r}' has unknown type." % rpin.get_safepath())
 
 
 # @API(copy_reg_file, 200)
@@ -1582,7 +1589,7 @@ def copy_reg_file(rpin, rpout, compress=0):
     except IOError as e:
         if (e.errno == errno.ERANGE):
             log.Log.FatalError(
-                "'IOError - Result too large' while reading %s. "
+                "'IOError - Result too large' while reading {rp!s}. "
                 "If you are using a Mac, this is probably "
                 "the result of HFS+ filesystem corruption. "
                 "Please exclude this file from your backup "
@@ -1618,7 +1625,7 @@ def cmp(rpin, rpout):
     elif rpin.issock():
         return rpout.issock()
     else:
-        raise RPathException("File %s has unknown type" % rpin.get_safepath())
+        raise RPathException("File {rp!r} has unknown type" % rpin.get_safepath())
 
 
 def copy_attribs(rpin, rpout):
@@ -1629,7 +1636,7 @@ def copy_attribs(rpin, rpout):
 
     """
     log.Log(
-        "Copying attributes from %s to %s" % (rpin.index,
+        "Copying attributes from {rp!s} to {rp!s}" % (rpin.index,
                                               rpout.get_safepath()), 7)
     assert rpin.lstat() == rpout.lstat() or rpin.isspecial(), (
         "Input '{irp!s}' and output '{orp!s}' paths must exist likewise, "
@@ -1663,7 +1670,7 @@ def copy_attribs_inc(rpin, rpout):
 
     """
     log.Log(
-        "Copying inc attrs from %s to %s" % (rpin.index, rpout.get_safepath()),
+        "Copying inc attrs from {rp!s} to {rp!s}" % (rpin.index, rpout.get_safepath()),
         7)
     _check_for_files(rpin, rpout)
     if Globals.change_ownership:
@@ -1700,14 +1707,14 @@ def rename(rp_source, rp_dest):
     assert rp_source.conn is rp_dest.conn, (
         "Source '{srp!s}' and destination '{drp!s}' paths must have the "
         "same connection for renaming.".format(srp=rp_source, drp=rp_dest))
-    log.Log(lambda: "Renaming %s to %s" % (rp_source.get_safepath(), rp_dest.get_safepath()), 7)
+    log.Log(lambda: "Renaming {rp!s} to {rp!s}" % (rp_source.get_safepath(), rp_dest.get_safepath()), 7)
     if not rp_source.lstat():
         rp_dest.delete()
     else:
         if rp_dest.lstat() and rp_source.getinode() == rp_dest.getinode() and \
            rp_source.getinode() != 0:
             log.Log(
-                "Warning: Attempt to rename over same inode: %s to %s" %
+                "Warning: Attempt to rename over same inode: {rp!s} to {rp!s}" %
                 (rp_source.get_safepath(), rp_dest.get_safepath()), 2)
             # You can't rename one hard linked file over another
             rp_source.delete()
@@ -1729,7 +1736,7 @@ def rename(rp_source, rp_dest):
                     rp_source.conn.os.rename(rp_source.path, rp_dest.path)
                 else:
                     log.Log(
-                        "OSError while renaming %s to %s" %
+                        "OSError while renaming {rp!s} to {rp!s}" %
                         (rp_source.get_safepath(), rp_dest.get_safepath()), 1)
                     raise
 
@@ -1976,10 +1983,8 @@ def _cmp_file_attribs(rp1, rp2):
     else:
         result = ((rp1.getctime() == rp2.getctime())
                   and (rp1.getmtime() == rp2.getmtime()))
-    log.Log(
-        "Compare attribs of %s and %s: %s" % (rp1.get_safeindexpath(),
-                                              rp2.get_safeindexpath(), result),
-        7)
+    log.Log("Compare attribs of {rp1!s} and {rp2!s}: {res}".format(
+            rp1=rp1, rp2=rp2, res=result), 7)
     return result
 
 
@@ -1999,8 +2004,7 @@ def _check_for_files(*rps):
     """Make sure that all the rps exist, raise error if not"""
     for rp in rps:
         if not rp.lstat():
-            raise RPathException(
-                "File %s does not exist" % rp.get_safeindexpath())
+            raise RPathException("File {rp!s} does not exist".format(rp=rp))
 
 
 # These functions are overwritten by the eas_acls.py module.  We can't

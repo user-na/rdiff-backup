@@ -101,8 +101,12 @@ class QuotedRPath(rpath.RPath):
             result = rpath.RPath.isincfile(self)
         return result
 
-    def get_path(self):
-        """Just a getter to return the path unquoted"""
+    def __fspath__(self):
+        """
+        Just a getter to return the path unquoted
+
+        Fulfills the os.PathLike interface
+        """
         return unquote(self.path)
 
 
@@ -195,9 +199,8 @@ def update_quoting(rbdir):
                 list.append(new_name)
             name_rp = dirpath_rp.append(name)
             new_rp = dirpath_rp.append(new_name)
-            log.Log(
-                "Re-quoting %s to %s" % (name_rp.get_safepath(),
-                                         new_rp.get_safepath()), 5)
+            log.Log("Re-quoting {orp!s} to {nrp!s}".format(
+                orp=name_rp, nrp=new_rp), 5)
             rpath.move(name_rp, new_rp)
 
     assert rbdir.conn is Globals.local_connection, (
@@ -206,7 +209,7 @@ def update_quoting(rbdir):
     mirror_rp = rbdir.get_parent_rp()
     mirror = mirror_rp.path
 
-    log.Log("Re-quoting repository %s" % mirror_rp.get_safepath(), 3)
+    log.Log("Re-quoting repository {rp!s}".format(rp=mirror_rp), 3)
 
     for dirpath, dirs, files in os.walk(mirror):
         dirpath_rp = mirror_rp.newpath(dirpath)

@@ -169,9 +169,8 @@ def update_rf(rf, rorp, mirror_root):
 
     def update_incs(rf, inc_base):
         """Swap inclist in rf with those with base inc_base and return"""
-        log.Log(
-            "Restoring with increment base %s for file %s" %
-            (_safe_str(inc_base), rorp.get_safeindexpath()), 6)
+        log.Log("Restoring with increment base {inc} for file {rp!s}".format(
+            inc=(_safe_str(inc_base), rp=rorp)), 6)
         rf.inc_rp = _get_long_rp(inc_base)
         rf.inc_list = _get_inclist(inc_base)
         rf.set_relevant_incs()

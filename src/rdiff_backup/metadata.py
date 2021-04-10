@@ -656,20 +656,19 @@ class PatchDiffMan(Manager):
         for (time, rp) in sortlist:
             if time in unique_set:
                 if Globals.allow_duplicate_timestamps:
-                    log.Log("Warning: metadata file '%s' has a duplicate "
+                    log.Log("Warning: metadata file '{rp!s}' has a duplicate "
                             "timestamp date, you might not be able to "
                             "recover files on or earlier than this date. "
                             "Assuming you're in the process of cleaning up "
-                            "your repository." %
-                            rp.get_safepath(), 2)
+                            "your repository.".format(rp=rp), 2)
                 else:
                     log.Log.FatalError(
-                        "Metadata file '%s' has a duplicate timestamp date, "
-                        "you might not be able to recover files on or earlier "
-                        "than this date. "
+                        "Metadata file '{rp!s}' has a duplicate timestamp "
+                        "date, you might not be able to recover files on or "
+                        "earlier than this date. "
                         "Check the man page on how to clean up your repository "
-                        "using the '--allow-duplicate-timestamps' option." %
-                        rp.get_safepath())
+                        "using the '--allow-duplicate-timestamps' "
+                        "option.".format(rp=rp))
             else:
                 unique_set.add(time)
 

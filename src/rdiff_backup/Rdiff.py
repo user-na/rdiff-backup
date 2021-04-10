@@ -25,17 +25,15 @@ def get_signature(rp, blocksize=None):
     """Take signature of rpin file and return in file object"""
     if not blocksize:
         blocksize = _find_blocksize(rp.getsize())
-    log.Log(
-        "Getting signature of %s with blocksize %s" % (rp.get_safeindexpath(),
-                                                       blocksize), 7)
+    log.Log("Getting signature of {rp!s} with blocksize {blks}".format(
+        rp=rp, blks=blocksize), 7)
     return librsync.SigFile(rp.open("rb"), blocksize)
 
 
 def get_delta_sigrp_hash(rp_signature, rp_new):
     """Like above but also calculate hash of new as close() value"""
-    log.Log(
-        "Getting delta (with hash) of %s with signature %s" %
-        (rp_new.get_safepath(), rp_signature.get_safeindexpath()), 7)
+    log.Log("Getting delta (with hash) of {rp!s} with signature {srp!s}".format(
+        rp=rp_new, srp=rp_signature), 7)
     return librsync.DeltaFile(
         rp_signature.open("rb"), hash.FileWrapper(rp_new.open("rb")))
 
